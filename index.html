@@ -3,24 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>日本國土開發：忘年會接寶大作戰 </title>
     <style>
+        /* 歸零設定 */
+        * { box-sizing: border-box; }
+
         body {
             margin: 0;
             padding: 0;
-            width: 100vw;
-            height: 100vh;
-            overflow: hidden; /* 禁止滾動 */
             background-color: #000;
             font-family: 'Arial', sans-serif;
-            touch-action: none; /* 禁止預設觸控行為 */
-            position: fixed; /* 鎖定 Body */
+            overflow: hidden; /* 禁止滾動 */
+            touch-action: none; /* 禁止雙擊放大等手勢 */
+            
+            /* 🔧 核心修改：使用 fixed 鎖定視窗，強迫適應瀏覽器剩餘空間 */
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
         }
 
         #game-container {
-            position: relative;
+            position: absolute;
             width: 100%;
             height: 100%;
             background: url('background.png') no-repeat center bottom;
@@ -49,7 +56,12 @@
         .hud {
             display: flex;
             justify-content: space-between;
+            /* 🔧 這裡加入 env(safe-area-inset) 避開瀏海與左右邊界 */
             padding: 20px;
+            padding-left: max(20px, env(safe-area-inset-left));
+            padding-right: max(20px, env(safe-area-inset-right));
+            padding-top: max(10px, env(safe-area-inset-top));
+            
             font-size: 24px;
             font-weight: bold;
             color: white;
@@ -71,6 +83,10 @@
             z-index: 20;
             pointer-events: auto;
             text-align: center;
+            
+            /* 確保覆蓋層也避開安全區域，以免按鈕太靠邊 */
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
         }
 
         #orientation-overlay {
@@ -146,7 +162,7 @@
         let frameCount = 0;
         let globalSpeedMultiplier = 1;
 
-        // --- 音效系統 (合成音) ---
+        // --- 音效系統 ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let bgmInterval = null;
 
@@ -224,33 +240,36 @@
             { emoji: '💣', score: -1, speedVar: 7, sound: 'bomb' }
         ];
 
-        // --- 全螢幕與畫面大小處理 ---
+        // --- 視窗大小適應邏輯 (重要修改) ---
         function resize() {
-            // 使用 window.innerWidth 和 innerHeight 確保抓到的是「當前可視範圍」
-            // 這樣就算網址列沒有縮回去，遊戲也不會被切掉
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            // clientWidth/Height 會抓取「不含網址列」的實際可用空間
+            canvas.width = document.body.clientWidth;
+            canvas.height = document.body.clientHeight;
             
-            // 重新計算玩家 Y 軸位置 (確保在地板上)
+            // 重新定位地板
             player.y = canvas.height - player.height - 30;
             
             if (!gameRunning) player.x = canvas.width / 2 - player.width / 2;
         }
+        
+        // 監聽各種可能造成畫面改變的事件
         window.addEventListener('resize', resize);
-        window.addEventListener('orientationchange', () => {
-            // 延遲執行，因為轉向時瀏覽器需要時間重新計算版面
-            setTimeout(resize, 200);
-        });
+        window.addEventListener('orientationchange', () => setTimeout(resize, 200));
+        // 針對 iOS Safari 網址列縮放的特殊處理
+        setInterval(() => {
+             if(Math.abs(canvas.height - document.body.clientHeight) > 10) {
+                 resize();
+             }
+        }, 1000);
+
         resize();
 
-        // 嘗試進入全螢幕的函式
+        // 嘗試進入全螢幕 (Android 比較有用)
         function enterFullScreen() {
             const docEl = document.documentElement;
             const requestFunc = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
             if (requestFunc) {
-                requestFunc.call(docEl).catch(err => {
-                    console.log("全螢幕請求被拒絕或不支援 (這是正常的，特別是在 iOS)");
-                });
+                requestFunc.call(docEl).catch(err => console.log("Fullscreen blocked"));
             }
         }
 
@@ -282,8 +301,7 @@
         function RequestDeviceOrientation() {
             if (audioCtx.state === 'suspended') audioCtx.resume();
             
-            // 📍 這裡加入全螢幕請求
-            enterFullScreen();
+            enterFullScreen(); // 嘗試全螢幕，失敗也沒關係，因為 CSS 已經做好了防護
 
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
@@ -303,6 +321,7 @@
         }
 
         function startGame() {
+            resize(); // 開始前再強制對齊一次
             startScreen.classList.add('hidden');
             gameOverScreen.classList.add('hidden');
             gameRunning = true;
@@ -311,7 +330,7 @@
             items = [];
             globalSpeedMultiplier = 1;
             scoreDisplay.innerText = `💰 分數: ${score}`;
-            resize(); 
+            
             Synth.startBGM();
             
             const timerInterval = setInterval(() => {
@@ -371,7 +390,9 @@
 
         function gameLoop() {
             if (!gameRunning) return;
+            
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
             player.x += player.speedX;
             if (player.x < 0) player.x = 0;
             if (player.x > canvas.width - player.width) player.x = canvas.width - player.width;
