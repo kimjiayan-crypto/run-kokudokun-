@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>國土開發：工地接寶大作戰</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #87CEEB; /* 工地藍天 */
+            font-family: 'Arial', sans-serif;
+            touch-action: none; /* 禁止縮放 */
+        }
+
+        /* 工地背景裝飾 */
+        #bg-decoration {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 20%;
+            background: repeating-linear-gradient(
+                45deg,
+                #FFD700,
+                #FFD700 10px,
+                #333 10px,
+                #333 20px
+            );
+            opacity: 0.5;
+            z-index: -1;
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+
+        /* UI 介面 */
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            padding: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        /* 開始與結束畫面 */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 10;
+            pointer-events: auto;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            color: #FFD700;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        p {
+            font-size: 18px;
+            margin: 5px 20px;
+            line-height: 1.5;
+        }
+
+        button {
+            margin-top: 30px;
+            padding: 15px 40px;
+            font-size: 24px;
+            border: none;
+            border-radius: 50px;
+            background: #FF4500;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #B22222;
+            transition: transform 0.1s;
+        }
+
+        button:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+    <div id="bg-decoration"></div>
+
+    <div class="ui-layer">
+        <div class="hud">
+            <span id="scoreDisplay">💰 分數: 0</span>
+            <span id="timeDisplay">⏱️ 30</span>
+        </div>
+    </div>
+
+    <div id="startScreen" class="overlay">
+        <h1>🏗️ 工地接寶大作戰</h1>
+        <p>左右傾斜手機來控制國土鳥</p>
+        <p>接住紅包 🧧 (+100)</p>
+        <p>閃避鋼筋與螺絲 🔩 (-50)</p>
+        <button id="startBtn">開始工作！</button>
+        <p style="font-size: 12px; margin-top: 20px; color: #aaa;">(若無法控制，請檢查手機瀏覽器權限)</p>
+    </div>
+
+    <div id="gameOverScreen" class="overlay hidden">
+        <h1>👷 下班啦！</h1>
+        <p>你的成績</p>
+        <h2 id="finalScore" style="font-size: 50px; color: #FFD700; margin: 10px 0;">0</h2>
+        <button onclick="location.reload()">再玩一次</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const startBtn = document.getElementById('startBtn');
+
+        // 遊戲設定
+        let gameRunning = false;
+        let score = 0;
+        let timeLeft = 30;
+        let spawnRate = 40; // 掉落物生成頻率 (數字越小越快)
+        let frameCount = 0;
+        let difficultyMultiplier = 1; // 速度倍率
+
+        // 圖片資源
+        const playerImg = new Image();
+        playerImg.src = '國土鳥.png'; // ⚠️ 請確保檔名一致，或改為 'bird.png'
+        let playerImgLoaded = false;
+        playerImg.onload = () => { playerImgLoaded = true; };
+
+        // 玩家設定
+        const player = {
+            x: 0,
+            y: 0,
+            width: 80,
+            height: 80,
+            speed: 0 // 當前移動速度
+        };
+
+        // 掉落物陣列
+        let items = [];
+        
+        // 掉落物種類
+        const itemTypes = [
+            { type: 'good', emoji: '🧧', score: 100, speed: 5 },
+            { type: 'bad', emoji: '🔩', score: -50, speed: 7 },
+            { type: 'bad', emoji: '🏗️', score: -50, speed: 8 },
+            { type: 'bad', emoji: '⚙️', score: -50, speed: 6 }
+        ];
+
+        // 初始化 Canvas 大小
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            player.y = canvas.height - player.height - 20;
+            player.x = canvas.width / 2 - player.width / 2;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // 手機傾斜控制
+        function handleOrientation(event) {
+            if (!gameRunning) return;
+            
+            // gamma 是左右傾斜 (-90 到 90)
+            const tilt = event.gamma; 
+            
+            // 簡單平滑處理：將傾斜角度轉換為速度
+            if (tilt > 5) {
+                player.speed = 8; // 向右
+            } else if (tilt < -5) {
+                player.speed = -8; // 向左
+            } else {
+                player.speed = 0; // 停止
+            }
+        }
+
+        // 開始按鈕 (處理 iOS 權限)
+        startBtn.addEventListener('click', () => {
+            // iOS 13+ 需要請求權限
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(response => {
+                        if (response === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation);
+                            startGame();
+                        } else {
+                            alert('需要允許動作權限才能玩喔！');
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                // Android 或舊版 iOS
+                window.addEventListener('deviceorientation', handleOrientation);
+                startGame();
+            }
+        });
+
+        // 電腦版除錯用 (鍵盤控制)
+        window.addEventListener('keydown', (e) => {
+            if (!gameRunning) return;
+            if (e.key === 'ArrowLeft') player.x -= 20;
+            if (e.key === 'ArrowRight') player.x += 20;
+        });
+
+        function startGame() {
+            startScreen.classList.add('hidden');
+            gameRunning = true;
+            score = 0;
+            timeLeft = 30;
+            items = [];
+            scoreDisplay.innerText = `💰 分數: ${score}`;
+            
+            // 啟動倒數計時
+            const timerInterval = setInterval(() => {
+                if (!gameRunning) {
+                    clearInterval(timerInterval);
+                    return;
+                }
+                timeLeft--;
+                timeDisplay.innerText = `⏱️ ${timeLeft}`;
+
+                // 難度增加機制
+                if (timeLeft <= 15) {
+                    difficultyMultiplier = 1.8; // 時間剩一半，速度變快
+                    spawnRate = 25; // 生成變快
+                    document.body.style.backgroundColor = "#FF7F50"; // 背景變色警示
+                }
+
+                if (timeLeft <= 0) {
+                    endGame();
+                    clearInterval(timerInterval);
+                }
+            }, 1000);
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function endGame() {
+            gameRunning = false;
+            gameOverScreen.classList.remove('hidden');
+            finalScoreDisplay.innerText = score;
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            // 清除畫面
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 更新玩家位置
+            player.x += player.speed;
+            
+            // 邊界檢查
+            if (player.x < 0) player.x = 0;
+            if (player.x > canvas.width - player.width) player.x = canvas.width - player.width;
+
+            // 繪製玩家
+            if (playerImgLoaded) {
+                ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+            } else {
+                // 如果讀不到圖，用 Emoji 代替
+                ctx.font = '60px Arial';
+                ctx.fillText('🐦', player.x + 10, player.y + 60);
+            }
+
+            // 生成掉落物
+            frameCount++;
+            if (frameCount % spawnRate === 0) {
+                // 隨機選一個類型，好壞機率 (30% 好, 70% 壞)
+                const isGood = Math.random() > 0.6; 
+                let itemType;
+                
+                if (isGood) {
+                    itemType = itemTypes[0]; // 紅包
+                } else {
+                    // 隨機選一個壞東西
+                    itemType = itemTypes[Math.floor(Math.random() * (itemTypes.length - 1)) + 1];
+                }
+
+                items.push({
+                    x: Math.random() * (canvas.width - 50),
+                    y: -50,
+                    ...itemType
+                });
+            }
+
+            // 更新並繪製掉落物
+            for (let i = 0; i < items.length; i++) {
+                let item = items[i];
+                item.y += item.speed * difficultyMultiplier;
+
+                // 繪製 Emoji
+                ctx.font = '40px Arial';
+                ctx.fillText(item.emoji, item.x, item.y + 40);
+
+                // 碰撞偵測 (簡單矩形)
+                if (
+                    item.x < player.x + player.width &&
+                    item.x + 40 > player.x &&
+                    item.y < player.y + player.height &&
+                    item.y + 40 > player.y
+                ) {
+                    // 撞到了！
+                    score += item.score;
+                    scoreDisplay.innerText = `💰 分數: ${score}`;
+                    
+                    // 視覺回饋 (簡單閃爍)
+                    if (item.score < 0) {
+                        canvas.style.opacity = 0.5;
+                        setTimeout(() => canvas.style.opacity = 1, 100);
+                    }
+
+                    // 移除該物件
+                    items.splice(i, 1);
+                    i--;
+                    continue;
+                }
+
+                // 超出底部移除
+                if (item.y > canvas.height) {
+                    items.splice(i, 1);
+                    i--;
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+    </script>
+</body>
+</html>
