@@ -14,7 +14,6 @@
             font-family: 'Arial', sans-serif;
             overflow: hidden; 
             touch-action: none;
-            /* 鎖定視窗 */
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
             width: 100%; height: 100%;
@@ -24,7 +23,6 @@
             position: absolute;
             width: 100%;
             height: 100%;
-            /* 背景圖設定 */
             background: url('background.png') no-repeat center bottom;
             background-size: cover; 
         }
@@ -35,7 +33,6 @@
             height: 100%;
         }
 
-        /* UI 層 */
         .ui-layer {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -50,7 +47,6 @@
             display: flex;
             justify-content: space-between;
             padding: 20px;
-            /* 避開瀏海 */
             padding-top: max(20px, env(safe-area-inset-top)); 
             font-size: 24px;
             font-weight: bold;
@@ -58,7 +54,7 @@
             text-shadow: 2px 2px 4px #000;
         }
 
-        /* 覆蓋層 */
+        /* 覆蓋層通用樣式 */
         .overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -74,6 +70,13 @@
             padding: 20px;
         }
 
+        /* 🚫 強制直屏提示層 (預設隱藏) */
+        #orientation-overlay {
+            display: none; 
+            background: #222;
+            z-index: 999; /* 最高層級 */
+        }
+
         h1 { font-size: 28px; margin-bottom: 10px; color: #FFD700; text-shadow: 2px 2px 0 #000; }
         p { font-size: 18px; margin: 8px 0; line-height: 1.5; }
 
@@ -86,9 +89,21 @@
         button:active { transform: translateY(4px); box-shadow: none; }
         .hidden { display: none !important; }
 
+        /* 📱 關鍵 CSS：如果偵測到是橫屏 (Landscape)，強制隱藏遊戲並顯示提示 */
+        @media screen and (orientation: landscape) {
+            #game-container { display: none !important; }
+            #orientation-overlay { display: flex !important; }
+        }
+
     </style>
 </head>
 <body>
+
+    <div id="orientation-overlay" class="overlay">
+        <h1 style="color: white;">請將手機轉直 📱</h1>
+        <p style="font-size: 40px;">⬆️</p>
+        <p>本遊戲僅支援直向遊玩</p>
+    </div>
 
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
@@ -101,8 +116,7 @@
         
         <div id="startScreen" class="overlay">
             <h1 style="font-size: 36px;">🏗️ 日本國土<br>紅包接接樂</h1>
-            <p>手機拿直的就能玩！</p>
-            <p>左右傾斜移動你的角色</p>
+            <p>左右傾斜手機移動國土君</p>
             <div style="margin: 20px 0; font-size: 24px;">
                 <div>🧧 接到 +1 分</div>
                 <div style="margin-top:10px;">💣 撞到 -1 分</div>
@@ -203,7 +217,6 @@
         sprites.hit.src = 'hit.png';
         sprites.buff.src = 'buff.png';
 
-        // 稍微縮小一點角色，讓直屏好閃避
         const player = {
             x: 0, y: 0, width: 80, height: 80, speedX: 0,
             facing: 'right', state: 'run', stateTimer: null 
@@ -223,23 +236,19 @@
         }
         
         window.addEventListener('resize', resize);
-        // 直向模式下，其實不太需要監聽轉向，但保留以防萬一
         window.addEventListener('orientationchange', () => setTimeout(resize, 200));
         resize();
 
-        // 🎮 核心修改：直向控制邏輯
+        // 🎮 直向控制邏輯 (Gamma軸)
         function handleOrientation(event) {
             if (!gameRunning) return;
             
-            // 直向時，我們看的是 Gamma (左右翻轉)
-            let tilt = event.gamma; 
+            let tilt = event.gamma; // 直向拿手機時，左右傾斜看的是 Gamma
             
             if (tilt > 5) {
-                // 手機向右傾斜 -> 往右跑
-                player.speedX = 6 * globalSpeedMultiplier; // 直向畫面窄，速度稍微調慢一點點比較好控
+                player.speedX = 6 * globalSpeedMultiplier; 
                 player.facing = 'right';
             } else if (tilt < -5) {
-                // 手機向左傾斜 -> 往左跑
                 player.speedX = -6 * globalSpeedMultiplier;
                 player.facing = 'left';
             } else {
@@ -301,7 +310,7 @@
                 timeDisplay.innerText = `⏱️ ${timeLeft}`;
 
                 if (timeLeft <= 10) {
-                    globalSpeedMultiplier = 1.3; // 直屏加速稍微溫和一點
+                    globalSpeedMultiplier = 1.3;
                     spawnRate = 30;
                     timeDisplay.style.color = "#FF4500";
                 }
@@ -379,7 +388,6 @@
                 ctx.font = '40px Arial';
                 ctx.fillText(item.emoji, item.x, item.y + 40);
 
-                // 碰撞判定 (因為直向畫面小，判定範圍稍微調寬鬆一點)
                 if (
                     item.x < player.x + player.width && 
                     item.x + 40 > player.x &&
