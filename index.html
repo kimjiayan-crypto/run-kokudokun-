@@ -13,13 +13,10 @@
             touch-action: none;
         }
 
-        /* 遊戲主容器 */
         #game-container {
             position: relative;
             width: 100%;
             height: 100vh;
-            /* 設定背景圖片 - 這裡會抓取 background.png */
-            /* 🔧 修正：強制背景向下對齊，確保看到地板 */
             background: url('background.png') no-repeat center bottom fixed;
             -webkit-background-size: cover;
             -moz-background-size: cover;
@@ -33,7 +30,6 @@
             height: 100%;
         }
 
-        /* UI 介面 */
         .ui-layer {
             position: absolute;
             top: 0;
@@ -56,7 +52,6 @@
             text-shadow: 2px 2px 4px #000;
         }
 
-        /* 覆蓋層 (開始、結束、橫屏提示) */
         .overlay {
             position: absolute;
             top: 0;
@@ -69,62 +64,32 @@
             justify-content: center;
             align-items: center;
             color: white;
-            z-index: 20; /* 確保在最上層 */
+            z-index: 20;
             pointer-events: auto;
             text-align: center;
         }
 
-        /* 強制橫屏提示層 - 預設隱藏 */
         #orientation-overlay {
             display: none; 
             background: #333;
             z-index: 30;
         }
 
-        h1 {
-            font-size: 32px;
-            margin-bottom: 10px;
-            color: #FFD700;
-            text-shadow: 2px 2px 0 #000;
-        }
-
-        p {
-            font-size: 18px;
-            margin: 5px 20px;
-            line-height: 1.5;
-        }
+        h1 { font-size: 32px; margin-bottom: 10px; color: #FFD700; text-shadow: 2px 2px 0 #000; }
+        p { font-size: 18px; margin: 5px 20px; line-height: 1.5; }
 
         button {
-            margin-top: 30px;
-            padding: 15px 40px;
-            font-size: 24px;
-            border: none;
-            border-radius: 50px;
-            background: #FF4500;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 4px 0 #B22222;
-            transition: transform 0.1s;
+            margin-top: 30px; padding: 15px 40px; font-size: 24px;
+            border: none; border-radius: 50px; background: #FF4500;
+            color: white; font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 0 #B22222; transition: transform 0.1s;
         }
+        button:active { transform: translateY(4px); box-shadow: none; }
+        .hidden { display: none !important; }
 
-        button:active {
-            transform: translateY(4px);
-            box-shadow: none;
-        }
-
-        .hidden {
-            display: none !important;
-        }
-
-        /* CSS Media Query: 偵測手機直屏 */
         @media screen and (orientation: portrait) and (max-width: 1024px) {
-            #game-container {
-                display: none; /* 直屏時隱藏遊戲 */
-            }
-            #orientation-overlay {
-                display: flex; /* 直屏時顯示提示 */
-            }
+            #game-container { display: none; }
+            #orientation-overlay { display: flex; }
         }
     </style>
 </head>
@@ -138,23 +103,20 @@
 
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
-
         <div class="ui-layer">
             <div class="hud">
                 <span id="scoreDisplay">💰 分數: 0</span>
                 <span id="timeDisplay">⏱️ 30</span>
             </div>
         </div>
-
         <div id="startScreen" class="overlay">
             <h1>🏗️ 日本國土 忘年會紅包爭奪戰 </h1>
             <p>左右傾斜手機控制國土鳥的行動</p>
-            <p>接住錢錢 🧧+10 💵+3 🪙+1 </p>
-            <p>閃避危險 💣-10 🔨-3 🔧-1 </p>
+            <p>接住紅包 🧧 +1 </p>
+            <p>閃避炸彈 💣 -1 </p>
             <button id="startBtn">開始搶錢！</button>
-            <p style="font-size: 12px; margin-top: 20px; color: #aaa;">(僅支援橫屏遊玩)</p>
+            <p style="font-size: 12px; margin-top: 20px; color: #aaa;">(開啟音效體驗更佳)</p>
         </div>
-
         <div id="gameOverScreen" class="overlay hidden">
             <h1>👷 下班啦！</h1>
             <p>你的成績</p>
@@ -173,7 +135,7 @@
         const finalScoreDisplay = document.getElementById('finalScore');
         const startBtn = document.getElementById('startBtn');
 
-        // --- 遊戲設定 ---
+        // --- 遊戲變數 ---
         let gameRunning = false;
         let score = 0;
         let timeLeft = 30;
@@ -181,68 +143,105 @@
         let frameCount = 0;
         let globalSpeedMultiplier = 1;
 
-        // --- 圖片資源載入 ---
-        const sprites = {
-            run: new Image(),
-            hit: new Image(),
-            buff: new Image()
+        // --- 🎹 程式碼合成音效系統 (免下載檔案) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let bgmInterval = null;
+
+        const Synth = {
+            // 播放單個音符
+            playTone: (freq, type, duration) => {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            },
+            // 紅包音效 (叮!)
+            playCoin: () => {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(2000, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            },
+            // 炸彈音效 (布茲...)
+            playBomb: () => {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            },
+            // 背景音樂循環 (簡單的 8-bit 節奏)
+            startBGM: () => {
+                if (bgmInterval) clearInterval(bgmInterval);
+                let noteIndex = 0;
+                // 簡單的 C 大調低音
+                const notes = [261.6, 0, 329.6, 0, 392.0, 0, 261.6, 0]; 
+                bgmInterval = setInterval(() => {
+                    if(!gameRunning) return;
+                    const freq = notes[noteIndex % notes.length];
+                    if (freq > 0) Synth.playTone(freq, 'triangle', 0.2);
+                    noteIndex++;
+                }, 250); // 每 0.25秒 一拍
+            },
+            stopBGM: () => {
+                if (bgmInterval) clearInterval(bgmInterval);
+            }
         };
-        
-        // 抓取 GitHub 上現有的檔名
+
+        // --- 圖片 ---
+        const sprites = { run: new Image(), hit: new Image(), buff: new Image() };
         sprites.run.src = 'run_right.png'; 
         sprites.hit.src = 'hit.png';
         sprites.buff.src = 'buff.png';
 
-        let assetsLoaded = 0;
-        sprites.run.onload = () => { assetsLoaded++; console.log("Run loaded"); };
-        sprites.hit.onload = () => { assetsLoaded++; console.log("Hit loaded"); };
-        sprites.buff.onload = () => { assetsLoaded++; console.log("Buff loaded"); };
-
-        // --- 玩家設定 ---
+        // --- 玩家 ---
         const player = {
-            x: 0,
-            y: 0,
-            width: 100,  
-            height: 100,
-            speedX: 0,
-            facing: 'right', // 'left' or 'right'
-            state: 'run',    // 'run', 'hit', 'buff'
-            stateTimer: null 
+            x: 0, y: 0, width: 100, height: 100, speedX: 0,
+            facing: 'right', state: 'run', stateTimer: null 
         };
 
-        // --- 掉落物設定 ---
+        // --- 掉落物 ---
         let items = [];
         const itemTypes = [
-            // 加分組
-            { emoji: '🪙', score: 1,  speedVar: 4 },
-            { emoji: '💵', score: 3,  speedVar: 5 },
-            { emoji: '🧧', score: 10, speedVar: 6 },
-            // 扣分組
-            { emoji: '🔨', score: -1,  speedVar: 5 },
-            { emoji: '🔧', score: -3,  speedVar: 6 },
-            { emoji: '💣', score: -10, speedVar: 7 }
+            { emoji: '🧧', score: 1, speedVar: 6, sound: 'coin' },
+            { emoji: '💣', score: -1, speedVar: 7, sound: 'bomb' }
         ];
 
-        // 初始化 Canvas 大小
         function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
             player.y = canvas.height - player.height - 30;
-            if (!gameRunning) {
-                player.x = canvas.width / 2 - player.width / 2;
-            }
+            if (!gameRunning) player.x = canvas.width / 2 - player.width / 2;
         }
         window.addEventListener('resize', resize);
         window.addEventListener('orientationchange', resize);
         resize();
 
-        // --- 控制邏輯 ---
         function handleOrientation(event) {
             if (!gameRunning) return;
-            
-            // 橫屏模式下偵測左右傾斜
             let tilt = event.beta; 
-            
             if (tilt > 5) {
                 player.speedX = 8 * globalSpeedMultiplier;
                 player.facing = 'right';
@@ -254,7 +253,6 @@
             }
         }
 
-        // 電腦鍵盤控制 (測試用)
         window.addEventListener('keydown', (e) => {
             if (!gameRunning) return;
             if (e.key === 'ArrowLeft') { player.speedX = -10; player.facing = 'left'; }
@@ -264,10 +262,13 @@
              if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') player.speedX = 0;
         });
 
-        // --- 遊戲核心 ---
+        // --- 遊戲流程 ---
         startBtn.addEventListener('click', RequestDeviceOrientation);
 
         function RequestDeviceOrientation() {
+            // 啟動音效引擎
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
                     .then(response => {
@@ -287,6 +288,7 @@
 
         function startGame() {
             startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
             gameRunning = true;
             score = 0;
             timeLeft = 30;
@@ -295,9 +297,13 @@
             scoreDisplay.innerText = `💰 分數: ${score}`;
             resize(); 
             
+            // 播放 BGM
+            Synth.startBGM();
+            
             const timerInterval = setInterval(() => {
                 if (!gameRunning) {
                     clearInterval(timerInterval);
+                    Synth.stopBGM();
                     return;
                 }
                 timeLeft--;
@@ -320,6 +326,7 @@
 
         function endGame() {
             gameRunning = false;
+            Synth.stopBGM();
             gameOverScreen.classList.remove('hidden');
             finalScoreDisplay.innerText = score;
         }
@@ -335,12 +342,8 @@
 
         function drawPlayer() {
             let imgToDraw = sprites.run;
-
-            if (player.state === 'hit') {
-                imgToDraw = sprites.hit;
-            } else if (player.state === 'buff') {
-                imgToDraw = sprites.buff;
-            }
+            if (player.state === 'hit') imgToDraw = sprites.hit;
+            else if (player.state === 'buff') imgToDraw = sprites.buff;
 
             ctx.save();
             if (player.facing === 'left' && player.state === 'run') {
@@ -357,12 +360,10 @@
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 更新玩家位置
             player.x += player.speedX;
             if (player.x < 0) player.x = 0;
             if (player.x > canvas.width - player.width) player.x = canvas.width - player.width;
 
-            // 繪製玩家
             if (sprites.run.complete) {
                 drawPlayer();
             } else {
@@ -370,7 +371,6 @@
                 ctx.fillText('🐦', player.x + 20, player.y + 70);
             }
 
-            // 生成掉落物
             frameCount++;
             if (frameCount % spawnRate === 0) {
                 const randomType = itemTypes[Math.floor(Math.random() * itemTypes.length)];
@@ -381,7 +381,6 @@
                 });
             }
 
-            // 更新掉落物
             for (let i = 0; i < items.length; i++) {
                 let item = items[i];
                 item.y += item.speedVar * globalSpeedMultiplier;
@@ -389,7 +388,6 @@
                 ctx.font = '45px Arial';
                 ctx.fillText(item.emoji, item.x, item.y + 45);
 
-                // 碰撞偵測
                 if (
                     item.x < player.x + player.width * 0.8 && 
                     item.x + 45 > player.x + player.width * 0.2 &&
@@ -399,9 +397,12 @@
                     score += item.score;
                     scoreDisplay.innerText = `💰 分數: ${score}`;
                     
-                    if (item.score > 0) {
+                    // 播放合成音效
+                    if (item.sound === 'coin') {
+                        Synth.playCoin();
                         setPlayerState('buff');
                     } else {
+                        Synth.playBomb();
                         setPlayerState('hit');
                     }
 
@@ -421,6 +422,3 @@
     </script>
 </body>
 </html>
-
-
-
