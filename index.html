@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>日商日本國土開發：忘年會奪寶大作戰 V2</title>
+    <title>國土開發：工地接寶大作戰 V2.1</title>
     <style>
         body {
             margin: 0;
@@ -195,7 +195,7 @@
         const totalAssets = 3;
         function checkAssetsLoaded() {
             assetsLoaded++;
-            if (assetsLoaded === totalAssets) console.log("所有角色圖片載入完成");
+            // 圖片載入完成後不做事，等遊戲開始時直接畫
         }
         sprites.run.onload = checkAssetsLoaded;
         sprites.hit.onload = checkAssetsLoaded;
@@ -205,15 +205,15 @@
         const player = {
             x: 0,
             y: 0,
-            width: 100,  // 稍微調大一點像素圖
+            width: 100,  
             height: 100,
             speedX: 0,
             facing: 'right', // 'left' or 'right'
             state: 'run',    // 'run', 'hit', 'buff'
-            stateTimer: null // 用於計時回復狀態
+            stateTimer: null 
         };
 
-        // --- 掉落物設定 (新的計分表) ---
+        // --- 掉落物設定 ---
         let items = [];
         const itemTypes = [
             // 加分組
@@ -228,7 +228,6 @@
 
         // 初始化 Canvas 大小
         function resize() {
-            // 這裡我們不需要擔心直屏，因為 CSS 會擋住
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
             player.y = canvas.height - player.height - 30;
@@ -236,21 +235,19 @@
                 player.x = canvas.width / 2 - player.width / 2;
             }
         }
-        // 監聽螢幕旋轉和縮放
         window.addEventListener('resize', resize);
         window.addEventListener('orientationchange', resize);
         resize();
 
         // --- 控制邏輯 ---
-        // 手機傾斜控制 (針對橫屏優化)
         function handleOrientation(event) {
             if (!gameRunning) return;
             
-            // 在橫屏模式下，通常使用 beta (前後傾斜) 來控制左右移動
-            // 視手機方向而定，可能需要對調或取反值
+            // 橫屏模式下偵測左右傾斜
             let tilt = event.beta; 
             
-            // 簡單的防抖動和方向判斷
+            // iOS 有時 beta 值正負定義不同，這裡做個通用處理
+            // 如果發現方向反了，可以把這行的 8 改成 -8
             if (tilt > 5) {
                 player.speedX = 8 * globalSpeedMultiplier;
                 player.facing = 'right';
@@ -262,7 +259,7 @@
             }
         }
 
-        // 電腦版鍵盤控制測試用
+        // 電腦鍵盤控制 (測試用)
         window.addEventListener('keydown', (e) => {
             if (!gameRunning) return;
             if (e.key === 'ArrowLeft') { player.speedX = -10; player.facing = 'left'; }
@@ -272,9 +269,8 @@
              if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') player.speedX = 0;
         });
 
-
         // --- 遊戲核心 ---
-        startBtn.addEventListener('click',RequestDeviceOrientation);
+        startBtn.addEventListener('click', RequestDeviceOrientation);
 
         function RequestDeviceOrientation() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -302,7 +298,7 @@
             items = [];
             globalSpeedMultiplier = 1;
             scoreDisplay.innerText = `💰 分數: ${score}`;
-            resize(); // 確保開始時尺寸正確
+            resize(); 
             
             const timerInterval = setInterval(() => {
                 if (!gameRunning) {
@@ -312,7 +308,6 @@
                 timeLeft--;
                 timeDisplay.innerText = `⏱️ ${timeLeft}`;
 
-                // 時間緊迫模式
                 if (timeLeft <= 10) {
                     globalSpeedMultiplier = 1.5;
                     spawnRate = 25;
@@ -334,14 +329,9 @@
             finalScoreDisplay.innerText = score;
         }
 
-        // 改變玩家狀態的輔助函數
         function setPlayerState(newState) {
-            // 如果已經是特殊狀態，先清除舊的計時器
             if (player.stateTimer) clearTimeout(player.stateTimer);
-            
             player.state = newState;
-            
-            // 0.6秒後變回跑步狀態
             player.stateTimer = setTimeout(() => {
                 player.state = 'run';
                 player.stateTimer = null;
@@ -349,28 +339,23 @@
         }
 
         function drawPlayer() {
-            let imgToDraw = sprites.run; // 預設
+            let imgToDraw = sprites.run;
 
-            // 根據狀態決定要畫哪張圖
             if (player.state === 'hit') {
                 imgToDraw = sprites.hit;
             } else if (player.state === 'buff') {
                 imgToDraw = sprites.buff;
             }
 
-            // 處理鏡像翻轉 (如果向左跑)
-            ctx.save(); // 儲存當前畫布狀態
+            ctx.save();
             if (player.facing === 'left' && player.state === 'run') {
-                ctx.scale(-1, 1); // 水平翻轉
-                // 翻轉後座標系變了，繪製位置要調整
+                ctx.scale(-1, 1); 
                 ctx.drawImage(imgToDraw, -player.x - player.width, player.y, player.width, player.height);
             } else {
-                // 正常繪製
                 ctx.drawImage(imgToDraw, player.x, player.y, player.width, player.height);
             }
-            ctx.restore(); // 恢復畫布狀態
+            ctx.restore();
         }
-
 
         function gameLoop() {
             if (!gameRunning) return;
@@ -382,17 +367,20 @@
             if (player.x < 0) player.x = 0;
             if (player.x > canvas.width - player.width) player.x = canvas.width - player.width;
 
-            // 繪製玩家
+            // 繪製玩家 (確保圖片有載入，否則畫 Emoji 避免空白)
             if (assetsLoaded === totalAssets) {
                 drawPlayer();
             } else {
-                ctx.fillText('🐦', player.x, player.y + 50);
+                // 如果圖片還沒載入完，先畫個 Emoji 頂著
+                ctx.font = '50px Arial';
+                ctx.fillText('🐦', player.x + 20, player.y + 70);
             }
 
             // 生成掉落物
             frameCount++;
             if (frameCount % spawnRate === 0) {
-                const random Type = itemTypes[Math.floor(Math.random() * itemTypes.length)];
+                // 🔥 這裡就是剛剛出錯的地方，現在修好了
+                const randomType = itemTypes[Math.floor(Math.random() * itemTypes.length)];
                 items.push({
                     x: Math.random() * (canvas.width - 50),
                     y: -60,
@@ -403,7 +391,6 @@
             // 更新掉落物
             for (let i = 0; i < items.length; i++) {
                 let item = items[i];
-                // 速度隨時間和物品種類變化
                 item.y += item.speedVar * globalSpeedMultiplier;
 
                 ctx.font = '45px Arial';
@@ -411,7 +398,7 @@
 
                 // 碰撞偵測
                 if (
-                    item.x < player.x + player.width * 0.8 && // 碰撞箱稍微縮小一點比較精準
+                    item.x < player.x + player.width * 0.8 && 
                     item.x + 45 > player.x + player.width * 0.2 &&
                     item.y < player.y + player.height &&
                     item.y + 45 > player.y + player.height * 0.2
@@ -419,7 +406,6 @@
                     score += item.score;
                     scoreDisplay.innerText = `💰 分數: ${score}`;
                     
-                    // 根據分數正負改變角色狀態
                     if (item.score > 0) {
                         setPlayerState('buff');
                     } else {
