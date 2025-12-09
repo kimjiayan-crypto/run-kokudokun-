@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>國土開發：工地接寶大作戰 V2.1</title>
+    <title>日商日本國土開發：忘年會接寶大作戰 </title>
     <style>
         body {
             margin: 0;
@@ -18,8 +18,9 @@
             position: relative;
             width: 100%;
             height: 100vh;
-            /* 設定背景圖片 */
-            background: url('background.png') no-repeat center center fixed;
+            /* 設定背景圖片 - 這裡會抓取 background.png */
+            /* 🔧 修正：強制背景向下對齊，確保看到地板 */
+            background: url('background.png') no-repeat center bottom fixed;
             -webkit-background-size: cover;
             -moz-background-size: cover;
             -o-background-size: cover;
@@ -146,7 +147,7 @@
         </div>
 
         <div id="startScreen" class="overlay">
-            <h1>🏗️ 工地接寶大作戰 V2</h1>
+            <h1>🏗️ 工地接寶大作戰 V3.1</h1>
             <p>左右傾斜手機控制移動</p>
             <p>接住寶物 (💰,💵,🪙) 加分</p>
             <p>閃避危險 (💣,🔨,🔧) 扣分</p>
@@ -186,20 +187,16 @@
             hit: new Image(),
             buff: new Image()
         };
-        // ⚠️ 確保 GitHub 上的檔名與這裡一致
-        sprites.run.src = 'player_run.png'; 
-        sprites.hit.src = 'player_hit.png';
-        sprites.buff.src = 'player_buff.png';
+        
+        // 抓取 GitHub 上現有的檔名
+        sprites.run.src = 'run_right.png'; 
+        sprites.hit.src = 'hit.png';
+        sprites.buff.src = 'buff.png';
 
         let assetsLoaded = 0;
-        const totalAssets = 3;
-        function checkAssetsLoaded() {
-            assetsLoaded++;
-            // 圖片載入完成後不做事，等遊戲開始時直接畫
-        }
-        sprites.run.onload = checkAssetsLoaded;
-        sprites.hit.onload = checkAssetsLoaded;
-        sprites.buff.onload = checkAssetsLoaded;
+        sprites.run.onload = () => { assetsLoaded++; console.log("Run loaded"); };
+        sprites.hit.onload = () => { assetsLoaded++; console.log("Hit loaded"); };
+        sprites.buff.onload = () => { assetsLoaded++; console.log("Buff loaded"); };
 
         // --- 玩家設定 ---
         const player = {
@@ -246,8 +243,6 @@
             // 橫屏模式下偵測左右傾斜
             let tilt = event.beta; 
             
-            // iOS 有時 beta 值正負定義不同，這裡做個通用處理
-            // 如果發現方向反了，可以把這行的 8 改成 -8
             if (tilt > 5) {
                 player.speedX = 8 * globalSpeedMultiplier;
                 player.facing = 'right';
@@ -367,11 +362,10 @@
             if (player.x < 0) player.x = 0;
             if (player.x > canvas.width - player.width) player.x = canvas.width - player.width;
 
-            // 繪製玩家 (確保圖片有載入，否則畫 Emoji 避免空白)
-            if (assetsLoaded === totalAssets) {
+            // 繪製玩家
+            if (sprites.run.complete) {
                 drawPlayer();
             } else {
-                // 如果圖片還沒載入完，先畫個 Emoji 頂著
                 ctx.font = '50px Arial';
                 ctx.fillText('🐦', player.x + 20, player.y + 70);
             }
@@ -379,7 +373,6 @@
             // 生成掉落物
             frameCount++;
             if (frameCount % spawnRate === 0) {
-                // 🔥 這裡就是剛剛出錯的地方，現在修好了
                 const randomType = itemTypes[Math.floor(Math.random() * itemTypes.length)];
                 items.push({
                     x: Math.random() * (canvas.width - 50),
