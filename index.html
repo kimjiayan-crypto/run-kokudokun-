@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>日本國土開發：忘年會接寶大作戰 </title>
     <style>
-        /* 歸零設定 */
         * { box-sizing: border-box; }
 
         body {
@@ -13,25 +12,21 @@
             padding: 0;
             background-color: #000;
             font-family: 'Arial', sans-serif;
-            overflow: hidden; /* 禁止滾動 */
-            touch-action: none; /* 禁止雙擊放大等手勢 */
-            
-            /* 🔧 核心修改：使用 fixed 鎖定視窗，強迫適應瀏覽器剩餘空間 */
+            overflow: hidden; 
+            touch-action: none;
+            /* 鎖定視窗 */
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0; right: 0; bottom: 0;
+            width: 100%; height: 100%;
         }
 
         #game-container {
             position: absolute;
             width: 100%;
             height: 100%;
+            /* 背景圖設定 */
             background: url('background.png') no-repeat center bottom;
-            background-size: cover;
+            background-size: cover; 
         }
 
         #gameCanvas {
@@ -40,12 +35,10 @@
             height: 100%;
         }
 
+        /* UI 層 */
         .ui-layer {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none;
             display: flex;
             flex-direction: column;
@@ -56,24 +49,19 @@
         .hud {
             display: flex;
             justify-content: space-between;
-            /* 🔧 這裡加入 env(safe-area-inset) 避開瀏海與左右邊界 */
             padding: 20px;
-            padding-left: max(20px, env(safe-area-inset-left));
-            padding-right: max(20px, env(safe-area-inset-right));
-            padding-top: max(10px, env(safe-area-inset-top));
-            
+            /* 避開瀏海 */
+            padding-top: max(20px, env(safe-area-inset-top)); 
             font-size: 24px;
             font-weight: bold;
             color: white;
             text-shadow: 2px 2px 4px #000;
         }
 
+        /* 覆蓋層 */
         .overlay {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.85);
             display: flex;
             flex-direction: column;
@@ -83,20 +71,11 @@
             z-index: 20;
             pointer-events: auto;
             text-align: center;
-            
-            /* 確保覆蓋層也避開安全區域，以免按鈕太靠邊 */
-            padding-left: env(safe-area-inset-left);
-            padding-right: env(safe-area-inset-right);
+            padding: 20px;
         }
 
-        #orientation-overlay {
-            display: none; 
-            background: #333;
-            z-index: 30;
-        }
-
-        h1 { font-size: 32px; margin-bottom: 10px; color: #FFD700; text-shadow: 2px 2px 0 #000; }
-        p { font-size: 18px; margin: 5px 20px; line-height: 1.5; }
+        h1 { font-size: 28px; margin-bottom: 10px; color: #FFD700; text-shadow: 2px 2px 0 #000; }
+        p { font-size: 18px; margin: 8px 0; line-height: 1.5; }
 
         button {
             margin-top: 30px; padding: 15px 40px; font-size: 24px;
@@ -107,40 +86,35 @@
         button:active { transform: translateY(4px); box-shadow: none; }
         .hidden { display: none !important; }
 
-        @media screen and (orientation: portrait) and (max-width: 1024px) {
-            #game-container { display: none; }
-            #orientation-overlay { display: flex; }
-        }
     </style>
 </head>
 <body>
-
-    <div id="orientation-overlay" class="overlay">
-        <h1>請旋轉手機</h1>
-        <p>🔄</p>
-        <p>為了最佳體驗，請將手機橫向遊玩</p>
-    </div>
 
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
         <div class="ui-layer">
             <div class="hud">
-                <span id="scoreDisplay">💰 分數: 0</span>
+                <span id="scoreDisplay">💰 0</span>
                 <span id="timeDisplay">⏱️ 30</span>
             </div>
         </div>
+        
         <div id="startScreen" class="overlay">
-            <h1>🏗️ 日本國土 忘年會紅包爭奪戰 </h1>
-            <p>左右傾斜手機控制國土鳥的行動</p>
-            <p>接住紅包 🧧 +1 </p>
-            <p>閃避炸彈 💣 -1 </p>
-            <button id="startBtn">開始搶錢！</button>
-            <p style="font-size: 12px; margin-top: 20px; color: #aaa;">(開啟音效體驗更佳)</p>
+            <h1 style="font-size: 36px;">🏗️ 日本國土<br>紅包接接樂</h1>
+            <p>手機拿直的就能玩！</p>
+            <p>左右傾斜移動你的角色</p>
+            <div style="margin: 20px 0; font-size: 24px;">
+                <div>🧧 接到 +1 分</div>
+                <div style="margin-top:10px;">💣 撞到 -1 分</div>
+            </div>
+            <button id="startBtn">開始搶錢</button>
+            <p style="font-size: 12px; margin-top: 20px; color: #aaa;">(開啟聲音更有氣氛喔)</p>
         </div>
+
         <div id="gameOverScreen" class="overlay hidden">
             <h1>👷 下班啦！</h1>
-            <p>你的成績</p>
-            <h2 id="finalScore" style="font-size: 50px; color: #FFD700; margin: 10px 0;">0</h2>
+            <p>本次戰績</p>
+            <h2 id="finalScore" style="font-size: 60px; color: #FFD700; margin: 20px 0;">0</h2>
             <button onclick="location.reload()">再玩一次</button>
         </div>
     </div>
@@ -162,7 +136,7 @@
         let frameCount = 0;
         let globalSpeedMultiplier = 1;
 
-        // --- 音效系統 ---
+        // --- 音效 (合成音) ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let bgmInterval = null;
 
@@ -229,8 +203,9 @@
         sprites.hit.src = 'hit.png';
         sprites.buff.src = 'buff.png';
 
+        // 稍微縮小一點角色，讓直屏好閃避
         const player = {
-            x: 0, y: 0, width: 100, height: 100, speedX: 0,
+            x: 0, y: 0, width: 80, height: 80, speedX: 0,
             facing: 'right', state: 'run', stateTimer: null 
         };
 
@@ -240,47 +215,32 @@
             { emoji: '💣', score: -1, speedVar: 7, sound: 'bomb' }
         ];
 
-        // --- 視窗大小適應邏輯 (重要修改) ---
         function resize() {
-            // clientWidth/Height 會抓取「不含網址列」的實際可用空間
             canvas.width = document.body.clientWidth;
             canvas.height = document.body.clientHeight;
-            
-            // 重新定位地板
-            player.y = canvas.height - player.height - 30;
-            
+            player.y = canvas.height - player.height - 20; 
             if (!gameRunning) player.x = canvas.width / 2 - player.width / 2;
         }
         
-        // 監聽各種可能造成畫面改變的事件
         window.addEventListener('resize', resize);
+        // 直向模式下，其實不太需要監聽轉向，但保留以防萬一
         window.addEventListener('orientationchange', () => setTimeout(resize, 200));
-        // 針對 iOS Safari 網址列縮放的特殊處理
-        setInterval(() => {
-             if(Math.abs(canvas.height - document.body.clientHeight) > 10) {
-                 resize();
-             }
-        }, 1000);
-
         resize();
 
-        // 嘗試進入全螢幕 (Android 比較有用)
-        function enterFullScreen() {
-            const docEl = document.documentElement;
-            const requestFunc = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
-            if (requestFunc) {
-                requestFunc.call(docEl).catch(err => console.log("Fullscreen blocked"));
-            }
-        }
-
+        // 🎮 核心修改：直向控制邏輯
         function handleOrientation(event) {
             if (!gameRunning) return;
-            let tilt = event.beta; 
+            
+            // 直向時，我們看的是 Gamma (左右翻轉)
+            let tilt = event.gamma; 
+            
             if (tilt > 5) {
-                player.speedX = 8 * globalSpeedMultiplier;
+                // 手機向右傾斜 -> 往右跑
+                player.speedX = 6 * globalSpeedMultiplier; // 直向畫面窄，速度稍微調慢一點點比較好控
                 player.facing = 'right';
             } else if (tilt < -5) {
-                player.speedX = -8 * globalSpeedMultiplier;
+                // 手機向左傾斜 -> 往左跑
+                player.speedX = -6 * globalSpeedMultiplier;
                 player.facing = 'left';
             } else {
                 player.speedX = 0;
@@ -289,8 +249,8 @@
 
         window.addEventListener('keydown', (e) => {
             if (!gameRunning) return;
-            if (e.key === 'ArrowLeft') { player.speedX = -10; player.facing = 'left'; }
-            if (e.key === 'ArrowRight') { player.speedX = 10; player.facing = 'right'; }
+            if (e.key === 'ArrowLeft') { player.speedX = -8; player.facing = 'left'; }
+            if (e.key === 'ArrowRight') { player.speedX = 8; player.facing = 'right'; }
         });
         window.addEventListener('keyup', (e) => {
              if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') player.speedX = 0;
@@ -300,8 +260,6 @@
 
         function RequestDeviceOrientation() {
             if (audioCtx.state === 'suspended') audioCtx.resume();
-            
-            enterFullScreen(); // 嘗試全螢幕，失敗也沒關係，因為 CSS 已經做好了防護
 
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
@@ -321,7 +279,7 @@
         }
 
         function startGame() {
-            resize(); // 開始前再強制對齊一次
+            resize();
             startScreen.classList.add('hidden');
             gameOverScreen.classList.add('hidden');
             gameRunning = true;
@@ -329,7 +287,7 @@
             timeLeft = 30;
             items = [];
             globalSpeedMultiplier = 1;
-            scoreDisplay.innerText = `💰 分數: ${score}`;
+            scoreDisplay.innerText = `💰 ${score}`;
             
             Synth.startBGM();
             
@@ -343,8 +301,8 @@
                 timeDisplay.innerText = `⏱️ ${timeLeft}`;
 
                 if (timeLeft <= 10) {
-                    globalSpeedMultiplier = 1.5;
-                    spawnRate = 25;
+                    globalSpeedMultiplier = 1.3; // 直屏加速稍微溫和一點
+                    spawnRate = 30;
                     timeDisplay.style.color = "#FF4500";
                 }
 
@@ -400,15 +358,15 @@
             if (sprites.run.complete) {
                 drawPlayer();
             } else {
-                ctx.font = '50px Arial';
-                ctx.fillText('🐦', player.x + 20, player.y + 70);
+                ctx.font = '40px Arial';
+                ctx.fillText('🐦', player.x + 10, player.y + 60);
             }
 
             frameCount++;
             if (frameCount % spawnRate === 0) {
                 const randomType = itemTypes[Math.floor(Math.random() * itemTypes.length)];
                 items.push({
-                    x: Math.random() * (canvas.width - 50),
+                    x: Math.random() * (canvas.width - 40),
                     y: -60,
                     ...randomType
                 });
@@ -418,17 +376,18 @@
                 let item = items[i];
                 item.y += item.speedVar * globalSpeedMultiplier;
 
-                ctx.font = '45px Arial';
-                ctx.fillText(item.emoji, item.x, item.y + 45);
+                ctx.font = '40px Arial';
+                ctx.fillText(item.emoji, item.x, item.y + 40);
 
+                // 碰撞判定 (因為直向畫面小，判定範圍稍微調寬鬆一點)
                 if (
-                    item.x < player.x + player.width * 0.8 && 
-                    item.x + 45 > player.x + player.width * 0.2 &&
+                    item.x < player.x + player.width && 
+                    item.x + 40 > player.x &&
                     item.y < player.y + player.height &&
-                    item.y + 45 > player.y + player.height * 0.2
+                    item.y + 40 > player.y + player.height * 0.2
                 ) {
                     score += item.score;
-                    scoreDisplay.innerText = `💰 分數: ${score}`;
+                    scoreDisplay.innerText = `💰 ${score}`;
                     if (item.sound === 'coin') {
                         Synth.playCoin();
                         setPlayerState('buff');
