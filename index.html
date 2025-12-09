@@ -2,25 +2,28 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>日本國土開發：忘年會接寶大作戰 </title>
     <style>
         body {
             margin: 0;
-            overflow: hidden;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden; /* 禁止滾動 */
             background-color: #000;
             font-family: 'Arial', sans-serif;
-            touch-action: none;
+            touch-action: none; /* 禁止預設觸控行為 */
+            position: fixed; /* 鎖定 Body */
         }
 
         #game-container {
             position: relative;
             width: 100%;
-            height: 100vh;
-            background: url('background.png') no-repeat center bottom fixed;
-            -webkit-background-size: cover;
-            -moz-background-size: cover;
-            -o-background-size: cover;
+            height: 100%;
+            background: url('background.png') no-repeat center bottom;
             background-size: cover;
         }
 
@@ -40,6 +43,7 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            z-index: 10;
         }
 
         .hud {
@@ -135,7 +139,6 @@
         const finalScoreDisplay = document.getElementById('finalScore');
         const startBtn = document.getElementById('startBtn');
 
-        // --- 遊戲變數 ---
         let gameRunning = false;
         let score = 0;
         let timeLeft = 30;
@@ -143,12 +146,11 @@
         let frameCount = 0;
         let globalSpeedMultiplier = 1;
 
-        // --- 🎹 程式碼合成音效系統 (免下載檔案) ---
+        // --- 音效系統 (合成音) ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let bgmInterval = null;
 
         const Synth = {
-            // 播放單個音符
             playTone: (freq, type, duration) => {
                 if (audioCtx.state === 'suspended') audioCtx.resume();
                 const osc = audioCtx.createOscillator();
@@ -162,7 +164,6 @@
                 osc.start();
                 osc.stop(audioCtx.currentTime + duration);
             },
-            // 紅包音效 (叮!)
             playCoin: () => {
                 if (audioCtx.state === 'suspended') audioCtx.resume();
                 const osc = audioCtx.createOscillator();
@@ -177,7 +178,6 @@
                 osc.start();
                 osc.stop(audioCtx.currentTime + 0.1);
             },
-            // 炸彈音效 (布茲...)
             playBomb: () => {
                 if (audioCtx.state === 'suspended') audioCtx.resume();
                 const osc = audioCtx.createOscillator();
@@ -192,52 +192,67 @@
                 osc.start();
                 osc.stop(audioCtx.currentTime + 0.3);
             },
-            // 背景音樂循環 (簡單的 8-bit 節奏)
             startBGM: () => {
                 if (bgmInterval) clearInterval(bgmInterval);
                 let noteIndex = 0;
-                // 簡單的 C 大調低音
                 const notes = [261.6, 0, 329.6, 0, 392.0, 0, 261.6, 0]; 
                 bgmInterval = setInterval(() => {
                     if(!gameRunning) return;
                     const freq = notes[noteIndex % notes.length];
                     if (freq > 0) Synth.playTone(freq, 'triangle', 0.2);
                     noteIndex++;
-                }, 250); // 每 0.25秒 一拍
+                }, 250);
             },
             stopBGM: () => {
                 if (bgmInterval) clearInterval(bgmInterval);
             }
         };
 
-        // --- 圖片 ---
         const sprites = { run: new Image(), hit: new Image(), buff: new Image() };
         sprites.run.src = 'run_right.png'; 
         sprites.hit.src = 'hit.png';
         sprites.buff.src = 'buff.png';
 
-        // --- 玩家 ---
         const player = {
             x: 0, y: 0, width: 100, height: 100, speedX: 0,
             facing: 'right', state: 'run', stateTimer: null 
         };
 
-        // --- 掉落物 ---
         let items = [];
         const itemTypes = [
             { emoji: '🧧', score: 1, speedVar: 6, sound: 'coin' },
             { emoji: '💣', score: -1, speedVar: 7, sound: 'bomb' }
         ];
 
+        // --- 全螢幕與畫面大小處理 ---
         function resize() {
+            // 使用 window.innerWidth 和 innerHeight 確保抓到的是「當前可視範圍」
+            // 這樣就算網址列沒有縮回去，遊戲也不會被切掉
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
+            
+            // 重新計算玩家 Y 軸位置 (確保在地板上)
             player.y = canvas.height - player.height - 30;
+            
             if (!gameRunning) player.x = canvas.width / 2 - player.width / 2;
         }
         window.addEventListener('resize', resize);
-        window.addEventListener('orientationchange', resize);
+        window.addEventListener('orientationchange', () => {
+            // 延遲執行，因為轉向時瀏覽器需要時間重新計算版面
+            setTimeout(resize, 200);
+        });
         resize();
+
+        // 嘗試進入全螢幕的函式
+        function enterFullScreen() {
+            const docEl = document.documentElement;
+            const requestFunc = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+            if (requestFunc) {
+                requestFunc.call(docEl).catch(err => {
+                    console.log("全螢幕請求被拒絕或不支援 (這是正常的，特別是在 iOS)");
+                });
+            }
+        }
 
         function handleOrientation(event) {
             if (!gameRunning) return;
@@ -262,13 +277,14 @@
              if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') player.speedX = 0;
         });
 
-        // --- 遊戲流程 ---
         startBtn.addEventListener('click', RequestDeviceOrientation);
 
         function RequestDeviceOrientation() {
-            // 啟動音效引擎
             if (audioCtx.state === 'suspended') audioCtx.resume();
             
+            // 📍 這裡加入全螢幕請求
+            enterFullScreen();
+
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
                     .then(response => {
@@ -296,8 +312,6 @@
             globalSpeedMultiplier = 1;
             scoreDisplay.innerText = `💰 分數: ${score}`;
             resize(); 
-            
-            // 播放 BGM
             Synth.startBGM();
             
             const timerInterval = setInterval(() => {
@@ -357,9 +371,7 @@
 
         function gameLoop() {
             if (!gameRunning) return;
-
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             player.x += player.speedX;
             if (player.x < 0) player.x = 0;
             if (player.x > canvas.width - player.width) player.x = canvas.width - player.width;
@@ -396,8 +408,6 @@
                 ) {
                     score += item.score;
                     scoreDisplay.innerText = `💰 分數: ${score}`;
-                    
-                    // 播放合成音效
                     if (item.sound === 'coin') {
                         Synth.playCoin();
                         setPlayerState('buff');
@@ -405,18 +415,15 @@
                         Synth.playBomb();
                         setPlayerState('hit');
                     }
-
                     items.splice(i, 1);
                     i--;
                     continue;
                 }
-
                 if (item.y > canvas.height) {
                     items.splice(i, 1);
                     i--;
                 }
             }
-
             requestAnimationFrame(gameLoop);
         }
     </script>
