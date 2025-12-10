@@ -21,7 +21,7 @@
         #game-container {
             position: absolute;
             width: 100%; height: 100%;
-            /* ✅ 這裡設定你的背景圖 */
+            /* ✅ 背景設定保留 */
             background: url('background.png') no-repeat center bottom;
             background-size: cover; 
             transition: filter 0.2s; 
@@ -76,9 +76,15 @@
         button:active { transform: translateY(4px); box-shadow: none; }
         button:disabled { background: #555; box-shadow: none; transform: none; cursor: not-allowed; }
 
+        /* 藍色按鈕樣式 (給排行榜用) */
+        .btn-blue {
+            background: #1E90FF;
+            box-shadow: 0 4px 0 #104E8B;
+        }
+
         .hidden { display: none !important; }
 
-        /* 排行榜樣式 */
+        /* 輸入框樣式 */
         #inputSection { margin-bottom: 15px; width: 100%; max-width: 300px; }
         input[type="text"] {
             width: 100%; padding: 10px; font-size: 18px; text-align: center;
@@ -86,12 +92,13 @@
             margin-bottom: 10px;
         }
         
-        #leaderboard {
+        /* 排行榜列表樣式 */
+        #leaderboardList {
             width: 100%; max-width: 320px;
             background: rgba(255, 255, 255, 0.15);
             border-radius: 10px; padding: 15px;
             margin-top: 10px;
-            max-height: 35vh; overflow-y: auto; 
+            max-height: 50vh; overflow-y: auto; 
             backdrop-filter: blur(5px);
             border: 1px solid rgba(255,255,255,0.3);
         }
@@ -135,11 +142,12 @@
             <p>左右傾斜手機 操控國土君前進</p>
             <p>讓他替你衝鋒陷陣把紅包帶回家！</p>
             <div style="margin: 20px 0; font-size: 24px;">
-                <div>🧧 接到 +1 分</div>
-                <div style="margin-top:10px;">💣 撞到 -1 分</div>
+                <div>🧧 接到加分</div>
+                <div style="margin-top:10px;">💣 撞到減分</div>
             </div>
             <p style="color: #ffaaaa; font-size: 14px;">⚠️ 最後10秒小心陷阱變多！</p>
             <button id="startBtn">開始搶錢</button>
+            <button id="showRankBtn" class="btn-blue" style="margin-top: 15px; font-size: 16px;">🏆 觀看排行榜</button>
             <p style="font-size: 12px; margin-top: 20px; color: #aaa;">(開啟聲音更有氣氛喔)</p>
         </div>
 
@@ -153,19 +161,23 @@
                 <br>
                 <button id="submitBtn" onclick="submitScore()">上傳分數</button>
             </div>
-
-            <div id="leaderboard" class="hidden">
-                <div style="text-align: center; margin-bottom: 10px; color: #fff; font-size: 16px; border-bottom: 2px solid white; padding-bottom: 5px;">🏆 英雄榜 (前10名)</div>
-                <div id="rankList">載入中...</div>
-            </div>
-
-            <button onclick="location.reload()" style="margin-top: 15px; background: #444; font-size: 16px;">再玩一次</button>
+            <button onclick="location.reload()" style="margin-top: 15px; background: #444; font-size: 16px;">不傳了，再玩一次</button>
         </div>
+
+        <div id="leaderboardScreen" class="overlay hidden">
+            <h1 style="margin-bottom: 5px;">🏆 英雄榜</h1>
+            <p style="font-size: 14px; color: #aaa;">前 10 名高手</p>
+            
+            <div id="leaderboardList">載入中...</div>
+
+            <button id="closeRankBtn" class="btn-blue" onclick="closeLeaderboard()">回到主畫面</button>
+        </div>
+
     </div>
 
     <script>
         // ==========================================
-        // ⚠️ 請務必確認這裡的網址是你的 Web App URL
+        // ⚠️ 這是你上次提供的網址，如果沒換新的就不用動
         // ==========================================
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyvh7h_tKJA3fNWpb1p3kn-VlJ8R9YbpRNNn1GhtWuHS7VfbDbTk8CIUmcXR3E98jXEaw/exec"; 
         // ==========================================
@@ -176,12 +188,13 @@
         const timeDisplay = document.getElementById('timeDisplay');
         const startScreen = document.getElementById('startScreen');
         const gameOverScreen = document.getElementById('gameOverScreen');
+        const leaderboardScreen = document.getElementById('leaderboardScreen'); // 新增
         const finalScoreDisplay = document.getElementById('finalScore');
         const startBtn = document.getElementById('startBtn');
+        const showRankBtn = document.getElementById('showRankBtn'); // 新增
         const submitBtn = document.getElementById('submitBtn');
         const inputSection = document.getElementById('inputSection');
-        const leaderboardDiv = document.getElementById('leaderboard');
-        const rankListDiv = document.getElementById('rankList');
+        const leaderboardList = document.getElementById('leaderboardList');
         const playerNameInput = document.getElementById('playerName');
 
         let gameRunning = false;
@@ -257,7 +270,6 @@
 
         // 圖片載入
         const sprites = { run: new Image(), hit: new Image(), buff: new Image() };
-        // 這些檔名必須跟 GitHub 上的一模一樣
         sprites.run.src = 'run_right.png'; 
         sprites.hit.src = 'hit.png';
         sprites.buff.src = 'buff.png';
@@ -269,8 +281,8 @@
 
         let items = [];
         const itemTypes = [
-            { emoji: '🧧', score: 1, speedVar: 6, sound: 'coin' }, 
-            { emoji: '💣', score: -1, speedVar: 7, sound: 'bomb' }
+            { emoji: '🧧', score: 5, speedVar: 6, sound: 'coin' }, 
+            { emoji: '💣', score: -5, speedVar: 6, sound: 'bomb' }
         ];
 
         function resize() {
@@ -307,7 +319,11 @@
              if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') player.speedX = 0;
         });
 
+        // 綁定按鈕事件
         startBtn.addEventListener('click', RequestDeviceOrientation);
+        showRankBtn.addEventListener('click', () => {
+            openLeaderboard();
+        });
 
         function RequestDeviceOrientation() {
             if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -333,7 +349,7 @@
             isFeverMode = true;
             spawnRate = 15; 
             globalSpeedMultiplier = 1.8; 
-            goodItemChance = 0.4;
+            goodItemChance = 0.5;
             timeDisplay.style.color = "red";
             timeDisplay.style.transform = "scale(1.5)";
         }
@@ -342,6 +358,7 @@
             resize();
             startScreen.classList.add('hidden');
             gameOverScreen.classList.add('hidden');
+            leaderboardScreen.classList.add('hidden'); // 確保排行榜隱藏
             
             gameRunning = true;
             score = 0;
@@ -391,10 +408,29 @@
             canvas.style.backgroundColor = "transparent";
             
             // 重置 UI
-            inputSection.classList.remove('hidden');
-            leaderboardDiv.classList.add('hidden');
             submitBtn.disabled = false;
             submitBtn.innerText = "上傳分數";
+        }
+
+        // ============================
+        // 🔥 排行榜與資料傳輸邏輯
+        // ============================
+
+        // 開啟排行榜 (會隱藏其他視窗)
+        function openLeaderboard() {
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            leaderboardScreen.classList.remove('hidden');
+            
+            fetchLeaderboardData();
+        }
+
+        // 關閉排行榜 -> 回到開始畫面
+        function closeLeaderboard() {
+            leaderboardScreen.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+            // 重置遊戲結束畫面狀態，以防萬一
+            gameOverScreen.classList.add('hidden');
         }
 
         function submitScore() {
@@ -418,7 +454,8 @@
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `action=submit&name=${encodeURIComponent(name)}&score=${score}`
             }).then(() => {
-                setTimeout(fetchLeaderboard, 1000);
+                // 上傳成功後，直接開啟排行榜
+                setTimeout(openLeaderboard, 1000);
             }).catch(err => {
                 console.error(err);
                 alert("上傳失敗，請檢查網路連線");
@@ -427,10 +464,8 @@
             });
         }
 
-        function fetchLeaderboard() {
-            inputSection.classList.add('hidden');
-            leaderboardDiv.classList.remove('hidden');
-            rankListDiv.innerHTML = "載入排行榜中...";
+        function fetchLeaderboardData() {
+            leaderboardList.innerHTML = "資料載入中...";
 
             fetch(GOOGLE_SCRIPT_URL + "?action=get")
             .then(res => res.json())
@@ -453,10 +488,10 @@
                         `;
                     });
                 }
-                rankListDiv.innerHTML = html;
+                leaderboardList.innerHTML = html;
             })
             .catch(err => {
-                rankListDiv.innerHTML = "<div style='color:red'>載入失敗，請檢查網址或權限</div>";
+                leaderboardList.innerHTML = "<div style='color:red'>載入失敗，請檢查網址或權限</div>";
                 console.error(err);
             });
         }
@@ -476,7 +511,6 @@
             else if (player.state === 'buff') imgToDraw = sprites.buff;
 
             ctx.save();
-            // 如果面向左邊，水平翻轉
             if (player.facing === 'left') {
                 ctx.translate(player.x + player.width, player.y);
                 ctx.scale(-1, 1); 
