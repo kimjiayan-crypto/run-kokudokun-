@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>日本國土開發：忘年會接寶大作戰</title>
+    <title>日本國土開發：忘年會接寶大作戰 (終極版)</title>
     <style>
         * { box-sizing: border-box; }
 
@@ -21,6 +21,7 @@
         #game-container {
             position: absolute;
             width: 100%; height: 100%;
+            /* 背景圖 */
             background: url('background.png') no-repeat center bottom;
             background-size: cover; 
             transition: filter 0.2s; 
@@ -90,6 +91,7 @@
             margin-bottom: 10px;
         }
         
+        /* 排行榜列表樣式 */
         #leaderboardList {
             width: 100%; max-width: 320px;
             background: rgba(255, 255, 255, 0.15);
@@ -98,7 +100,7 @@
             max-height: 50vh; overflow-y: auto; 
             backdrop-filter: blur(5px);
             border: 1px solid rgba(255,255,255,0.3);
-            min-height: 150px; /* 確保有空間顯示 loading */
+            min-height: 150px;
             display: flex; flex-direction: column; justify-content: flex-start;
         }
         
@@ -114,14 +116,14 @@
         .rank-row:nth-child(2) { color: #C0C0C0; font-weight: bold; } 
         .rank-row:nth-child(3) { color: #CD7F32; font-weight: bold; } 
 
-        /* ✅ 新增：轉圈圈動畫 CSS */
+        /* 轉圈圈動畫 CSS */
         .spinner {
             border: 4px solid rgba(255, 255, 255, 0.3);
             border-top: 4px solid #FFD700;
             border-radius: 50%;
-            width: 40px; height: 40px;
+            width: 30px; height: 30px;
             animation: spin 1s linear infinite;
-            margin: 20px auto;
+            margin: 10px auto;
         }
 
         @keyframes spin {
@@ -196,7 +198,7 @@
 
     <script>
         // ==========================================
-        // ⚠️ Google Script URL (沿用你原本正確的)
+        // ⚠️ Google Script URL (已填入你提供的)
         // ==========================================
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyvh7h_tKJA3fNWpb1p3kn-VlJ8R9YbpRNNn1GhtWuHS7VfbDbTk8CIUmcXR3E98jXEaw/exec"; 
         // ==========================================
@@ -426,7 +428,7 @@
             canvas.style.backgroundColor = "transparent";
             
             submitBtn.disabled = false;
-            submitBtn.innerHTML = "上傳分數"; // 重置文字
+            submitBtn.innerHTML = "上傳分數"; 
         }
 
         function openLeaderboard() {
@@ -442,6 +444,10 @@
             gameOverScreen.classList.add('hidden');
         }
 
+        // ==========================================
+        // 🔥 核心修改：前端視覺詐欺 + 手機快取
+        // ==========================================
+
         function submitScore() {
             const name = playerNameInput.value.trim();
             if (!name) {
@@ -455,60 +461,101 @@
             }
 
             submitBtn.disabled = true;
-            // ✅ 優化：顯示 loading 動畫在按鈕上
             submitBtn.innerHTML = "上傳中... <span class='spinner' style='width:15px; height:15px; border-width:2px; display:inline-block; vertical-align:middle; margin:0 0 0 5px;'></span>";
 
+            // 1. 視覺詐欺：延遲 0.3 秒直接跳去排行榜
+            setTimeout(() => {
+                openLeaderboard();
+                // 顯示過場動畫
+                leaderboardList.innerHTML = `
+                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:150px;">
+                        <div class="spinner"></div>
+                        <div class="loading-text">正在同步數據...<br>(您的分數已紀錄)</div>
+                    </div>
+                `;
+            }, 300);
+
+            // 2. 背景默默上傳
             fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `action=submit&name=${encodeURIComponent(name)}&score=${score}`
             }).then(() => {
-                // ✅ 優化：將緩衝時間從 1000ms 縮短為 500ms
-                setTimeout(openLeaderboard, 500);
+                // 上傳完成後，默默再拉一次最新資料 (這時候使用者已經在看轉圈圈了)
+                fetchLeaderboardData(); 
             }).catch(err => {
                 console.error(err);
-                alert("上傳失敗，請檢查網路連線");
-                submitBtn.disabled = false;
-                submitBtn.innerText = "上傳分數";
             });
         }
 
-        function fetchLeaderboardData() {
-            // ✅ 優化：先顯示轉圈圈動畫
-            leaderboardList.innerHTML = `
-                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:150px;">
-                    <div class="spinner"></div>
-                    <div class="loading-text">資料載入中...</div>
-                </div>
-            `;
+        // 獨立渲染函式 (給快取和網路用)
+        function renderRankList(data) {
+            let html = "";
+            if(data.length === 0) {
+                html = "<div style='text-align:center; padding:20px; color:#aaa;'>目前尚無資料<br>快來搶頭香！</div>";
+            } else {
+                data.forEach((row, index) => {
+                    let rankIcon = index + 1;
+                    if(index === 0) rankIcon = "🥇";
+                    if(index === 1) rankIcon = "🥈";
+                    if(index === 2) rankIcon = "🥉";
+                    
+                    // 高亮顯示自己
+                    let highlight = "";
+                    if (row.name === playerNameInput.value && row.score == score) {
+                        highlight = "color:#FF4500; font-weight:bold;"; 
+                    }
 
+                    html += `
+                        <div class="rank-row" style="${highlight}">
+                            <span>${rankIcon} ${row.name}</span>
+                            <span>${row.score}分</span>
+                        </div>
+                    `;
+                });
+            }
+            leaderboardList.innerHTML = html;
+        }
+
+        function fetchLeaderboardData() {
+            // 1. 🔥 先嘗試讀取手機快取 (LocalStorage)
+            const cachedData = localStorage.getItem('game_leaderboard_cache');
+            
+            // 如果手機有存貨，直接顯示！(秒開)
+            if (cachedData) {
+                console.log("Using local cache");
+                renderRankList(JSON.parse(cachedData));
+                
+                // 加一個小提示
+                let loadingHint = document.createElement("div");
+                loadingHint.innerHTML = "<div class='loading-text' style='font-size:12px; margin-bottom:5px; color:#aaa;'>正在同步最新數據...</div>";
+                leaderboardList.prepend(loadingHint);
+            } else {
+                // 如果連快取都沒有，才顯示轉圈圈
+                leaderboardList.innerHTML = `
+                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:150px;">
+                        <div class="spinner"></div>
+                        <div class="loading-text">資料載入中...</div>
+                    </div>
+                `;
+            }
+
+            // 2. 🔥 背景去 Google 抓最新的
             fetch(GOOGLE_SCRIPT_URL + "?action=get")
             .then(res => res.json())
             .then(data => {
-                let html = "";
-                if(data.length === 0) {
-                    html = "<div style='text-align:center; padding:20px; color:#aaa;'>目前尚無資料<br>快來搶頭香！</div>";
-                } else {
-                    data.forEach((row, index) => {
-                        let rankIcon = index + 1;
-                        if(index === 0) rankIcon = "🥇";
-                        if(index === 1) rankIcon = "🥈";
-                        if(index === 2) rankIcon = "🥉";
-                        
-                        html += `
-                            <div class="rank-row">
-                                <span>${rankIcon} ${row.name}</span>
-                                <span>${row.score}分</span>
-                            </div>
-                        `;
-                    });
-                }
-                leaderboardList.innerHTML = html;
+                // 3. 抓到新資料後，更新畫面
+                renderRankList(data);
+                
+                // 4. 把新資料存回手機
+                localStorage.setItem('game_leaderboard_cache', JSON.stringify(data));
             })
             .catch(err => {
-                leaderboardList.innerHTML = "<div style='color:#ff4444; text-align:center; padding:20px;'>載入失敗<br>請檢查網路</div>";
                 console.error(err);
+                if (!cachedData) {
+                    leaderboardList.innerHTML = "<div style='color:#ff4444; text-align:center; padding:20px;'>載入失敗<br>請檢查網路</div>";
+                }
             });
         }
 
@@ -583,6 +630,7 @@
                     item.y < player.y + player.height &&
                     item.y + 40 > player.y
                 ) {
+                    // 分數計算：Fever 模式加倍
                     let points = item.score;
                     if (isFeverMode) {
                         points = item.score * 2; 
