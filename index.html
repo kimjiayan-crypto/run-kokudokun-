@@ -21,7 +21,6 @@
         #game-container {
             position: absolute;
             width: 100%; height: 100%;
-            /* ✅ 背景設定保留 */
             background: url('background.png') no-repeat center bottom;
             background-size: cover; 
             transition: filter 0.2s; 
@@ -76,7 +75,6 @@
         button:active { transform: translateY(4px); box-shadow: none; }
         button:disabled { background: #555; box-shadow: none; transform: none; cursor: not-allowed; }
 
-        /* 藍色按鈕樣式 (給排行榜用) */
         .btn-blue {
             background: #1E90FF;
             box-shadow: 0 4px 0 #104E8B;
@@ -92,7 +90,6 @@
             margin-bottom: 10px;
         }
         
-        /* 排行榜列表樣式 */
         #leaderboardList {
             width: 100%; max-width: 320px;
             background: rgba(255, 255, 255, 0.15);
@@ -101,6 +98,8 @@
             max-height: 50vh; overflow-y: auto; 
             backdrop-filter: blur(5px);
             border: 1px solid rgba(255,255,255,0.3);
+            min-height: 150px; /* 確保有空間顯示 loading */
+            display: flex; flex-direction: column; justify-content: flex-start;
         }
         
         .rank-row {
@@ -108,11 +107,31 @@
             padding: 8px 10px; 
             border-bottom: 1px solid rgba(255,255,255,0.2);
             font-size: 16px;
+            width: 100%;
         }
         .rank-row:last-child { border-bottom: none; }
         .rank-row:first-child { color: #FFD700; font-weight: bold; font-size: 18px; } 
         .rank-row:nth-child(2) { color: #C0C0C0; font-weight: bold; } 
         .rank-row:nth-child(3) { color: #CD7F32; font-weight: bold; } 
+
+        /* ✅ 新增：轉圈圈動畫 CSS */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #FFD700;
+            border-radius: 50%;
+            width: 40px; height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #aaa; font-size: 14px; margin-top: 10px; text-align: center;
+        }
 
         @media screen and (orientation: landscape) {
             #game-container { display: none !important; }
@@ -142,10 +161,10 @@
             <p>左右傾斜手機 操控國土君前進</p>
             <p>讓他替你衝鋒陷陣把紅包帶回家！</p>
             <div style="margin: 20px 0; font-size: 24px;">
-                <div>🧧 接到加分</div>
-                <div style="margin-top:10px;">💣 撞到減分</div>
+                <div>🧧 接到 <span style="color:#FFD700">+10</span> 分</div>
+                <div style="margin-top:10px;">💣 撞到 <span style="color:#ff4444">-10</span> 分</div>
+                <div style="font-size: 18px; color: #FFD700; margin-top: 15px; font-weight:bold;">🔥 最後10秒 分數兩倍！</div>
             </div>
-            <p style="color: #ffaaaa; font-size: 14px;">⚠️ 最後10秒小心陷阱變多！</p>
             <button id="startBtn">開始搶錢</button>
             <button id="showRankBtn" class="btn-blue" style="margin-top: 15px; font-size: 16px;">🏆 觀看排行榜</button>
             <p style="font-size: 12px; margin-top: 20px; color: #aaa;">(開啟聲音更有氣氛喔)</p>
@@ -167,17 +186,17 @@
         <div id="leaderboardScreen" class="overlay hidden">
             <h1 style="margin-bottom: 5px;">🏆 英雄榜</h1>
             <p style="font-size: 14px; color: #aaa;">前 10 名高手</p>
-            
-            <div id="leaderboardList">載入中...</div>
-
+            <div id="leaderboardList">
+                <div class="spinner"></div>
+                <div class="loading-text">資料載入中...</div>
+            </div>
             <button id="closeRankBtn" class="btn-blue" onclick="closeLeaderboard()">回到主畫面</button>
         </div>
-
     </div>
 
     <script>
         // ==========================================
-        // ⚠️ 這是你上次提供的網址，如果沒換新的就不用動
+        // ⚠️ Google Script URL (沿用你原本正確的)
         // ==========================================
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyvh7h_tKJA3fNWpb1p3kn-VlJ8R9YbpRNNn1GhtWuHS7VfbDbTk8CIUmcXR3E98jXEaw/exec"; 
         // ==========================================
@@ -188,10 +207,10 @@
         const timeDisplay = document.getElementById('timeDisplay');
         const startScreen = document.getElementById('startScreen');
         const gameOverScreen = document.getElementById('gameOverScreen');
-        const leaderboardScreen = document.getElementById('leaderboardScreen'); // 新增
+        const leaderboardScreen = document.getElementById('leaderboardScreen');
         const finalScoreDisplay = document.getElementById('finalScore');
         const startBtn = document.getElementById('startBtn');
-        const showRankBtn = document.getElementById('showRankBtn'); // 新增
+        const showRankBtn = document.getElementById('showRankBtn');
         const submitBtn = document.getElementById('submitBtn');
         const inputSection = document.getElementById('inputSection');
         const leaderboardList = document.getElementById('leaderboardList');
@@ -268,7 +287,6 @@
             }
         };
 
-        // 圖片載入
         const sprites = { run: new Image(), hit: new Image(), buff: new Image() };
         sprites.run.src = 'run_right.png'; 
         sprites.hit.src = 'hit.png';
@@ -280,9 +298,10 @@
         };
 
         let items = [];
+        // 分數設定
         const itemTypes = [
-            { emoji: '🧧', score: 5, speedVar: 6, sound: 'coin' }, 
-            { emoji: '💣', score: -5, speedVar: 6, sound: 'bomb' }
+            { emoji: '🧧', score: 10, speedVar: 6, sound: 'coin' }, 
+            { emoji: '💣', score: -10, speedVar: 7, sound: 'bomb' }
         ];
 
         function resize() {
@@ -319,7 +338,6 @@
              if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') player.speedX = 0;
         });
 
-        // 綁定按鈕事件
         startBtn.addEventListener('click', RequestDeviceOrientation);
         showRankBtn.addEventListener('click', () => {
             openLeaderboard();
@@ -349,7 +367,7 @@
             isFeverMode = true;
             spawnRate = 15; 
             globalSpeedMultiplier = 1.8; 
-            goodItemChance = 0.5;
+            goodItemChance = 0.4;
             timeDisplay.style.color = "red";
             timeDisplay.style.transform = "scale(1.5)";
         }
@@ -358,7 +376,7 @@
             resize();
             startScreen.classList.add('hidden');
             gameOverScreen.classList.add('hidden');
-            leaderboardScreen.classList.add('hidden'); // 確保排行榜隱藏
+            leaderboardScreen.classList.add('hidden');
             
             gameRunning = true;
             score = 0;
@@ -407,29 +425,20 @@
             finalScoreDisplay.innerText = score;
             canvas.style.backgroundColor = "transparent";
             
-            // 重置 UI
             submitBtn.disabled = false;
-            submitBtn.innerText = "上傳分數";
+            submitBtn.innerHTML = "上傳分數"; // 重置文字
         }
 
-        // ============================
-        // 🔥 排行榜與資料傳輸邏輯
-        // ============================
-
-        // 開啟排行榜 (會隱藏其他視窗)
         function openLeaderboard() {
             startScreen.classList.add('hidden');
             gameOverScreen.classList.add('hidden');
             leaderboardScreen.classList.remove('hidden');
-            
             fetchLeaderboardData();
         }
 
-        // 關閉排行榜 -> 回到開始畫面
         function closeLeaderboard() {
             leaderboardScreen.classList.add('hidden');
             startScreen.classList.remove('hidden');
-            // 重置遊戲結束畫面狀態，以防萬一
             gameOverScreen.classList.add('hidden');
         }
 
@@ -446,7 +455,8 @@
             }
 
             submitBtn.disabled = true;
-            submitBtn.innerText = "上傳中...";
+            // ✅ 優化：顯示 loading 動畫在按鈕上
+            submitBtn.innerHTML = "上傳中... <span class='spinner' style='width:15px; height:15px; border-width:2px; display:inline-block; vertical-align:middle; margin:0 0 0 5px;'></span>";
 
             fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
@@ -454,8 +464,8 @@
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `action=submit&name=${encodeURIComponent(name)}&score=${score}`
             }).then(() => {
-                // 上傳成功後，直接開啟排行榜
-                setTimeout(openLeaderboard, 1000);
+                // ✅ 優化：將緩衝時間從 1000ms 縮短為 500ms
+                setTimeout(openLeaderboard, 500);
             }).catch(err => {
                 console.error(err);
                 alert("上傳失敗，請檢查網路連線");
@@ -465,14 +475,20 @@
         }
 
         function fetchLeaderboardData() {
-            leaderboardList.innerHTML = "資料載入中...";
+            // ✅ 優化：先顯示轉圈圈動畫
+            leaderboardList.innerHTML = `
+                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:150px;">
+                    <div class="spinner"></div>
+                    <div class="loading-text">資料載入中...</div>
+                </div>
+            `;
 
             fetch(GOOGLE_SCRIPT_URL + "?action=get")
             .then(res => res.json())
             .then(data => {
                 let html = "";
                 if(data.length === 0) {
-                    html = "<div style='text-align:center; padding:10px;'>尚無資料</div>";
+                    html = "<div style='text-align:center; padding:20px; color:#aaa;'>目前尚無資料<br>快來搶頭香！</div>";
                 } else {
                     data.forEach((row, index) => {
                         let rankIcon = index + 1;
@@ -491,7 +507,7 @@
                 leaderboardList.innerHTML = html;
             })
             .catch(err => {
-                leaderboardList.innerHTML = "<div style='color:red'>載入失敗，請檢查網址或權限</div>";
+                leaderboardList.innerHTML = "<div style='color:#ff4444; text-align:center; padding:20px;'>載入失敗<br>請檢查網路</div>";
                 console.error(err);
             });
         }
@@ -567,7 +583,12 @@
                     item.y < player.y + player.height &&
                     item.y + 40 > player.y
                 ) {
-                    score += item.score;
+                    let points = item.score;
+                    if (isFeverMode) {
+                        points = item.score * 2; 
+                    }
+                    score += points;
+
                     scoreDisplay.innerText = `💰 ${score}`;
                     if (item.sound === 'coin') {
                         Synth.playCoin();
