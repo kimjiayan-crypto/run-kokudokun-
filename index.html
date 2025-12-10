@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>日本國土開發：忘年會接寶大作戰 (終極版)</title>
+    <title>日本國土開發：忘年會接寶大作戰 (終極可愛版)</title>
     <style>
         * { box-sizing: border-box; }
 
@@ -100,7 +100,7 @@
             max-height: 50vh; overflow-y: auto; 
             backdrop-filter: blur(5px);
             border: 1px solid rgba(255,255,255,0.3);
-            min-height: 150px;
+            min-height: 180px; /* 稍微加高一點給跑步動畫 */
             display: flex; flex-direction: column; justify-content: flex-start;
         }
         
@@ -116,24 +116,28 @@
         .rank-row:nth-child(2) { color: #C0C0C0; font-weight: bold; } 
         .rank-row:nth-child(3) { color: #CD7F32; font-weight: bold; } 
 
-        /* 轉圈圈動畫 CSS */
-        .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top: 4px solid #FFD700;
-            border-radius: 50%;
-            width: 30px; height: 30px;
-            animation: spin 1s linear infinite;
-            margin: 10px auto;
+        /* ✅ 新增：國土君跑步讀取動畫 CSS */
+        .loading-container {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100%; min-height: 150px;
         }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .running-anim {
+            width: 80px; height: 80px;
+            object-fit: contain;
+            margin-bottom: 15px;
+            /* 利用 CSS 動畫讓圖片左右翻轉，製造跑步效果 */
+            animation: runToggle 0.4s step-end infinite;
         }
-
+        @keyframes runToggle {
+            0%, 100% { transform: scaleX(1); } /* 面向右 */
+            50% { transform: scaleX(-1); } /* 面向左 */
+        }
         .loading-text {
-            color: #aaa; font-size: 14px; margin-top: 10px; text-align: center;
+            color: #aaa; font-size: 14px; margin-top: 5px; text-align: center;
         }
+
+        /* 移除舊的 spinner CSS */
+        /* .spinner { ... } */
 
         @media screen and (orientation: landscape) {
             #game-container { display: none !important; }
@@ -189,8 +193,10 @@
             <h1 style="margin-bottom: 5px;">🏆 英雄榜</h1>
             <p style="font-size: 14px; color: #aaa;">前 10 名高手</p>
             <div id="leaderboardList">
-                <div class="spinner"></div>
-                <div class="loading-text">資料載入中...</div>
+                <div class="loading-container">
+                    <img src="run_right.png" class="running-anim" alt="loading">
+                    <div class="loading-text">國土君努力跑腿中...</div>
+                </div>
             </div>
             <button id="closeRankBtn" class="btn-blue" onclick="closeLeaderboard()">回到主畫面</button>
         </div>
@@ -198,7 +204,7 @@
 
     <script>
         // ==========================================
-        // ⚠️ Google Script URL (已填入你提供的)
+        // ⚠️ Google Script URL
         // ==========================================
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyvh7h_tKJA3fNWpb1p3kn-VlJ8R9YbpRNNn1GhtWuHS7VfbDbTk8CIUmcXR3E98jXEaw/exec"; 
         // ==========================================
@@ -435,6 +441,8 @@
             startScreen.classList.add('hidden');
             gameOverScreen.classList.add('hidden');
             leaderboardScreen.classList.remove('hidden');
+            
+            // 開啟時，執行讀取
             fetchLeaderboardData();
         }
 
@@ -445,54 +453,49 @@
         }
 
         // ==========================================
-        // 🔥 核心修改：前端視覺詐欺 + 手機快取
+        // 🔥 修正版：排行榜與快取邏輯
         // ==========================================
-
         function submitScore() {
             const name = playerNameInput.value.trim();
-            if (!name) {
-                alert("請輸入名字才能上傳喔！");
-                return;
-            }
-
-            if (GOOGLE_SCRIPT_URL.includes("請將此處替換")) {
-                alert("⚠️ 錯誤：請先修改程式碼中的 GOOGLE_SCRIPT_URL 變數！");
-                return;
-            }
+            if (!name) { alert("請輸入名字！"); return; }
+            if (GOOGLE_SCRIPT_URL.includes("請將此處")) { alert("網址錯誤"); return; }
 
             submitBtn.disabled = true;
-            submitBtn.innerHTML = "上傳中... <span class='spinner' style='width:15px; height:15px; border-width:2px; display:inline-block; vertical-align:middle; margin:0 0 0 5px;'></span>";
+            // 上傳時按鈕變色提示
+            submitBtn.innerHTML = "處理中...";
 
-            // 1. 視覺詐欺：延遲 0.3 秒直接跳去排行榜
+            // 1. 視覺詐欺：直接切換畫面
             setTimeout(() => {
                 openLeaderboard();
-                // 顯示過場動畫
-                leaderboardList.innerHTML = `
-                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:150px;">
-                        <div class="spinner"></div>
-                        <div class="loading-text">正在同步數據...<br>(您的分數已紀錄)</div>
-                    </div>
-                `;
+                // 插入一個「處理中」的提示在最上面，不要蓋掉舊資料
+                let processingTip = document.createElement("div");
+                processingTip.innerHTML = "<div style='color:#FFD700; text-align:center; padding:5px; font-size:12px;'>國土君正在努力上傳您的分數...</div>";
+                leaderboardList.prepend(processingTip);
             }, 300);
 
-            // 2. 背景默默上傳
+            // 2. 背景上傳
             fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `action=submit&name=${encodeURIComponent(name)}&score=${score}`
             }).then(() => {
-                // 上傳完成後，默默再拉一次最新資料 (這時候使用者已經在看轉圈圈了)
+                console.log("上傳請求已發送");
+                // 上傳後再次更新資料
                 fetchLeaderboardData(); 
             }).catch(err => {
-                console.error(err);
+                console.error("上傳失敗", err);
+                // 如果真的失敗，可以考慮在這裡加個 alert 提示
+                alert("上傳似乎有點問題，請檢查網路後再試一次");
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = "上傳分數";
             });
         }
 
-        // 獨立渲染函式 (給快取和網路用)
+        // 獨立渲染 HTML 的函式
         function renderRankList(data) {
             let html = "";
-            if(data.length === 0) {
+            if (!data || data.length === 0) {
                 html = "<div style='text-align:center; padding:20px; color:#aaa;'>目前尚無資料<br>快來搶頭香！</div>";
             } else {
                 data.forEach((row, index) => {
@@ -501,10 +504,10 @@
                     if(index === 1) rankIcon = "🥈";
                     if(index === 2) rankIcon = "🥉";
                     
-                    // 高亮顯示自己
                     let highlight = "";
+                    // 簡單判斷是否為剛上傳的分數
                     if (row.name === playerNameInput.value && row.score == score) {
-                        highlight = "color:#FF4500; font-weight:bold;"; 
+                        highlight = "color:#FF4500; font-weight:bold; border: 1px solid #FF4500; background:rgba(255, 69, 0, 0.1); border-radius:5px;"; 
                     }
 
                     html += `
@@ -518,43 +521,60 @@
             leaderboardList.innerHTML = html;
         }
 
+        // 顯示跑步動畫的 HTML
+        function showRunningLoading() {
+             leaderboardList.innerHTML = `
+                <div class="loading-container">
+                    <img src="run_right.png" class="running-anim" alt="loading">
+                    <div class="loading-text">國土君努力跑腿中...</div>
+                </div>
+            `;
+        }
+
         function fetchLeaderboardData() {
-            // 1. 🔥 先嘗試讀取手機快取 (LocalStorage)
+            // 步驟 A：先檢查手機有沒有「舊資料」 (LocalStorage)
             const cachedData = localStorage.getItem('game_leaderboard_cache');
             
-            // 如果手機有存貨，直接顯示！(秒開)
             if (cachedData) {
-                console.log("Using local cache");
-                renderRankList(JSON.parse(cachedData));
-                
-                // 加一個小提示
-                let loadingHint = document.createElement("div");
-                loadingHint.innerHTML = "<div class='loading-text' style='font-size:12px; margin-bottom:5px; color:#aaa;'>正在同步最新數據...</div>";
-                leaderboardList.prepend(loadingHint);
+                // ✅ 有快取：馬上顯示！不用動畫！
+                console.log("★ 成功讀取手機快取！");
+                try {
+                    renderRankList(JSON.parse(cachedData));
+                    // 補一個小提示
+                    let hint = document.createElement("div");
+                    hint.className = "loading-text";
+                    hint.style.fontSize = "12px";
+                    hint.style.marginBottom = "5px";
+                    hint.innerText = "正在同步最新數據...";
+                    leaderboardList.prepend(hint);
+                } catch (e) {
+                    console.error("快取資料壞掉了", e);
+                    showRunningLoading(); // 資料壞了就顯示動畫
+                }
             } else {
-                // 如果連快取都沒有，才顯示轉圈圈
-                leaderboardList.innerHTML = `
-                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:150px;">
-                        <div class="spinner"></div>
-                        <div class="loading-text">資料載入中...</div>
-                    </div>
-                `;
+                // ❌ 沒快取：第一次玩，顯示國土君跑步動畫
+                console.log("∅ 手機裡沒快取，顯示跑步動畫");
+                showRunningLoading();
             }
 
-            // 2. 🔥 背景去 Google 抓最新的
+            // 步驟 B：不管有沒有快取，都要去 Google 抓最新的
             fetch(GOOGLE_SCRIPT_URL + "?action=get")
             .then(res => res.json())
             .then(data => {
-                // 3. 抓到新資料後，更新畫面
+                console.log("★ 成功從 Google 抓到資料！", data);
+                
+                // 1. 更新畫面
                 renderRankList(data);
                 
-                // 4. 把新資料存回手機
+                // 2. 存入手機 (關鍵步驟！)
                 localStorage.setItem('game_leaderboard_cache', JSON.stringify(data));
+                console.log("★ 已將資料存入手機快取");
             })
             .catch(err => {
-                console.error(err);
+                console.error("Google 連線失敗：", err);
+                // 如果連線失敗，且完全沒畫面，才顯示錯誤
                 if (!cachedData) {
-                    leaderboardList.innerHTML = "<div style='color:#ff4444; text-align:center; padding:20px;'>載入失敗<br>請檢查網路</div>";
+                    leaderboardList.innerHTML = "<div style='color:#ff4444; text-align:center; padding:20px;'>連線失敗<br>請檢查網路或網址</div>";
                 }
             });
         }
